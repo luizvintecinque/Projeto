@@ -1,0 +1,203 @@
+# -*- coding: utf-8 -*-
+import datetime
+
+from django.conf import settings
+from django.db import models
+
+from currency.field import CampoMonetario, formata_moeda
+from valuation.models import Dia
+from currency.field import formata_moeda
+from stocks.models import SocioPessoa
+from excel.models import CDI, IGPM, Ibov, IPCA, Libor, Dolar
+
+from decimal import *
+
+def quota_ex_dividendo (dia):
+    divs = [div.na_data(dia.data) for div in Dividendos.objects.filter(data__gte=dia.data)]
+    return dia.valor_quota-sum(divs)
+
+class Dividendos (models.Model):
+    """
+        Model para Dividendos com 'data' e 'valor'.
+    """
+
+    data = models.DateField()
+    valor = CampoMonetario(max_digits=20, decimal_places=8, verbose_name=u"Valor por cota")
+        
+    def valor_por_quota(self):
+        return 'R$ %s' % formata_moeda(self.valor)
+        
+    def total(self):
+        return 'R$ %s' % formata_moeda(self.valor*SocioPessoa.total_stocks(self.data-datetime.timedelta(1)))
+
+    def total_quotas(self):
+        return SocioPessoa.total_stocks(self.data-datetime.timedelta(1))
+    
+    def na_data (self, data):
+        fator_data = Dia.objects.get(data=self.data).fator_cdi
+        fator_passado = Dia.objects.get(data=data).fator_cdi
+        return self.valor*fator_passado/fator_data
+    
+    class Meta:
+        verbose_name = u"Dividendos"
+        verbose_name_plural = u"Dividendos"
+        ordering = ('-data', )
+        
+    def __unicode__ (self):
+        return '%s - %s' % (self.data.strftime('%d/%m/%Y'), self.valor)
+        
+    def save (self, *args, **kwargs):
+        x = super(Dividendos, self).save(*args, **kwargs)
+        try:    
+            for dia in Dia.objects.all().order_by('data'):
+                dia.quota_ex = quota_ex_dividendo(dia) 
+                dia.save()
+        except:
+            pass
+            
+        return x
+
+class Socio (models.Model):
+    """
+        Model de StockOptions com socios, data e quantidade.
+    """
+    #TODO: Mudar o nome para StockOption.
+    
+    data = models.DateField(verbose_name=u"Data inicial da stock option")
+    de_socio = models.ForeignKey(SocioPessoa, related_name="from_socio")
+    para_socio = models.ForeignKey(SocioPessoa, related_name="to_socio")
+    qtd = models.IntegerField(verbose_name=u"Número de stock options")
+    valor_inicial = CampoMonetario(verbose_name=u"Valor inicial",decimal_places=5)
+    cdi = CampoMonetario(max_digits=8,decimal_places=5)
+    ibov = CampoMonetario(max_digits=8,decimal_places=5)
+    ibov_mod = CampoMonetario(max_digits=3,decimal_places=2,verbose_name=u"Ibov Modificador (% a.a.)")
+    igpm = CampoMonetario(max_digits=8,decimal_places=5)
+    ipca = CampoMonetario(max_digits=8,decimal_places=5)
+    libor = CampoMonetario(max_digits=8,decimal_places=5)
+    
+    def dif_mes(self, d1, d2):
+        return (d1.year - d2.year)*12 + d1.month - d2.month
+    
+    def var_ibov(self):
+        valuation = Dia.objects.all().order_by('-data')[0]
+        var = float(Ibov.acumulado(self.data, valuation.data))
+        return var*((1+float(self.ibov_mod)/100)**(self.dif_mes(valuation.data,self.data)/12))
+        #return float(Ibov.acumulado(self.data, datetime.date.today()))
+    
+    def var_igpm(self):
+        valuation = Dia.objects.all().order_by('-data')[0]
+        return float(IGPM.acumulado(self.data, valuation.data))
+    
+    def var_ipca(self):
+        valuation = Dia.objects.all().order_by('-data')[0]
+        return float(IPCA.acumulado(self.data, valuation.data))    
+    
+    def var_cdi(self):
+        valuation = Dia.objects.all().order_by('-data')[0]
+        return float(CDI.acumulado(self.data, valuation.data))
+    
+    def var_libor(self):
+        valuation = Dia.objects.all().order_by('-data')[0]
+        # (Libor ou 5%)^(meses/12)  X variação Dolar
+        var_lib = float(Libor.acumulado(self.data, valuation.data))
+        if var_lib < 0.05:
+            var_lib = 0.05
+        var_lib = var_lib + 1
+        var_dolar = float(Dolar.acumulado(self.data, valuation.data))
+        var = var_dolar * (var_lib**(self.dif_mes(valuation.data,self.data)/12))
+        return float(var)
+    
+    def percentual_corrigir(self):
+        return float(self.cdi)*self.var_cdi()+float(self.ibov)*self.var_ibov()+float(self.igpm)*self.var_igpm()+float(self.ipca)*self.var_ipca()+float(self.libor)*self.var_libor()
+        
+    def valor_corrigido(self):
+        """
+            Método que retorna o valor corrigido da stock option
+        """
+        return round(self.corrigido() - self.dividendos(),2)
+    
+    def corrigido(self):
+        
+        valor_corrigido = float(self.valor_inicial)*self.percentual_corrigir()
+
+        return Decimal('%f' % valor_corrigido)
+    
+    def __unicode__ (self):
+        return self.para_socio.nome
+        
+    def percentual_atual (self):
+        """
+            Método que retorna o Vesting atual devido a datas. Pega o último já vencido.
+        """
+        try:
+            ultimo = list(self.sociovencimento_set.filter(data__lte=datetime.date.today()).order_by('-data'))[0]
+            return ultimo.percentual
+        except IndexError:
+            return 0
+        
+    def valor_atual (self, formata=True):
+        """
+        Método que retorna o valor da StockOption atual devido a Vestings.
+        """
+        try:
+            valor_corrigido = float(self.valor_corrigido())
+            valor_atual = float(self.quota_atual())
+          
+            if formata:
+                #return formata_moeda(self.qtd*(valor_atual-valor_corrigido))
+                return formata_moeda(self.qtd*round(valor_atual-valor_corrigido, 2))
+            else:
+                return self.qtd*round(valor_atual-valor_corrigido, 2)
+                        
+                                        
+        except IndexError:
+            return 0
+            
+    def quota_atual (self):
+        #print "thales"
+        valuation = Dia.objects.all().order_by('-data')[0]
+        return round(valuation.valor_iterado,2)
+        #return round(valuation.quota_stockopt(),2)
+        #return round(list(Dia.objects.all().order_by('-data'))[0].quota_calculo_stockopt(True),2)
+            
+    def dividendos(self):
+        #dividendos = sum([d.valor for d in Dividendos.objects.filter(data__gte=self.data)])
+        dividendos = sum([d.valor for d in Dividendos.objects.filter(data__range=(self.data, '2013-04-30'))])
+        return dividendos
+        
+        corrigido = self.valor_corrigido()
+        dividendos = self.dividendos()
+        return round(corrigido-dividendos,2)
+        
+    def quotas_compraveis (self):
+        """
+            Retorna o número de quotas que o valor atual compraria
+        """
+        return int(self.valor_atual(False)/self.quota_atual())
+            
+    def vencido (self):
+        """
+            Retorna TRUE caso já se tenha obtido Vesting de 100%.
+        """
+        return (self.percentual_atual() == 100)
+        
+    class Meta:
+        verbose_name = u"Stock Option"
+        verbose_name_plural = u"Stock Options"        
+      
+class SocioVencimento (models.Model):
+    """
+        Model de Vestings.
+    """
+    
+    socio = models.ForeignKey(Socio)
+    percentual = models.IntegerField(blank=True, null=True)
+    data = models.DateField()
+    
+    def __unicode__ (self):
+        return 'Vesting %s' % self.percentual
+    
+    class Meta:
+        verbose_name = u"Vesting"
+        verbose_name_plural = u"Vesting"
+        

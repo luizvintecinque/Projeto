@@ -1,0 +1,42 @@
+{% extends "socios/inicial.html" %}
+{% block conteudo %}
+{% load custom_tags %}
+<h2>Stock Options</h2>
+<br /><br />
+<span style="font-size: 0.7em">Valor atual da quota pós diluição das stock options: R$ {{ ultima_quota|dinheiro }}</span> 
+<table cellpadding="5" cellspacing="2" class="stocks" width="100%">
+	<tr>
+		<td class="stocks_left"><b>Dt. Inicial</b></td>
+		<td class="stocks_left"><b>Dt. Vesting</b></td>
+		<td class="stocks_left"><b>Quotas</b></td>
+		<td class="stocks_left"><b>Preço de Ex. Inicial</b></td>
+		<td class="stocks_left"><b>Preço de Ex. Atualizado</b></td>
+		<td class="stocks_left"><b>Valor</b></td>
+		<td class="stocks_left"><b>Quotas equivalentes</b></td>
+	</tr>
+{% if stock_opts %}
+{% for stock in stock_opts %}
+	<tr align="center">
+		<td>{{ stock.data|date:"d/m/Y" }}</td>
+		<td>{{ stock.sociovencimento_set.all.0.data|date:"d/m/Y" }}</td>
+		<td>{% ifequal stock.de_socio usuario %}-{{ stock.qtd|number_format }}{% else %}{{ stock.qtd|number_format }}{% endifequal %}</td>
+		<td>{{ stock.valor_inicial }}</td>
+		<td>{{ stock.valor_corrigido|dinheiro }}</td>
+		<td>{{ stock.valor_atual|dinheiro }}</td>
+		<td>{{ stock.quotas_compraveis|number_format }}</td>
+	</tr>
+{% endfor %}
+<tr align="center">
+	<td class="stocks_left"></td>
+	<td class="stocks_left"></td>
+	<td class="stocks_left"><b>{{ total_quotas|number_format }}</b></td>
+	<td class="stocks_left"></td>
+	<td class="stocks_left"></td>
+	<td class="stocks_left"><b>R$ {{ total_financ|dinheiro }}</b></td>	
+	<td class="stocks_left"><b>{{ total_eq|number_format }}</b></td>
+</tr>
+</table>
+{% else %}
+Voc&ecirc; n&atilde;o possui Stock Options.
+{% endif %}
+{% endblock %}
