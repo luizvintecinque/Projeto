@@ -1,0 +1,131 @@
+Environment:
+
+Request Method: GET
+Request URL: http://192.168.1.2/analise/minhas_stockopts/
+Django Version: 1.1.2
+Python Version: 2.4.2
+Installed Applications:
+['django.contrib.admin',
+ 'django.contrib.auth',
+ 'django.contrib.contenttypes',
+ 'django.contrib.sessions',
+ 'googlecharts',
+ 'controle',
+ 'excel',
+ 'valuation',
+ 'stockoptions',
+ 'stocks']
+Installed Middleware:
+('django.middleware.common.CommonMiddleware',
+ 'django.contrib.sessions.middleware.SessionMiddleware',
+ 'django.contrib.auth.middleware.AuthenticationMiddleware')
+
+
+Template error:
+In template /var/www/guepardo/templates/socios/stock.html, error at line 25
+   'if' statement improperly formatted
+   15 : 		<td class="stocks_left"><b>Quotas equivalentes</b></td>
+
+
+   16 : 	</tr>
+
+
+   17 : {% if stock_opts %}
+
+
+   18 : {% for stock in stock_opts %}
+
+
+   19 : 	<tr align="center">
+
+
+   20 : 		<td>{{ stock.data|date:"d/m/Y" }}</td>
+
+
+   21 : 		<td>{{ stock.sociovencimento_set.all.0.data|date:"d/m/Y" }}</td>
+
+
+   22 : 		<td>{% ifequal stock.de_socio usuario %}-{{ stock.qtd|number_format }}{% else %}{{ stock.qtd|number_format }}{% endifequal %}</td>
+
+
+   23 : 		<td>{{ stock.valor_inicial }}</td>
+
+
+   24 : 		<td>{{ stock.valor_corrigido|dinheiro }}</td>
+
+
+   25 :                 <td> {% if stock.valor_atual|dinheiro < 0 %} {{ stock.valor_atual.0|dinheiro }}{% else %}{{ stock.valor_atual|dinheiro }}</td>
+
+
+   26 :                 <td>{{ stock.quotas_compraveis|number_format }}</td>
+
+
+   27 : 	</tr>
+
+
+   28 : {% endfor %}
+
+
+   29 : <tr align="center">
+
+
+   30 : 	<td class="stocks_left"></td>
+
+
+   31 : 	<td class="stocks_left"></td>
+
+
+   32 : 	<td class="stocks_left"><b>{{ total_quotas|number_format }}</b></td>
+
+
+   33 : 	<td class="stocks_left"></td>
+
+
+   34 : 	<td class="stocks_left"></td>
+
+
+   35 : 	<td class="stocks_left"><b>R$ {{ total_financ|dinheiro }}</b></td>	
+
+
+Traceback:
+File "/usr/local/lib64/python2.4/site-packages/django/core/handlers/base.py" in get_response
+  99.                     response = callback(request, *callback_args, **callback_kwargs)
+File "/usr/local/lib64/python2.4/site-packages/django/contrib/auth/decorators.py" in __call__
+  78.             return self.view_func(request, *args, **kwargs)
+File "/var/www/guepardo/stocks/views.py" in minhas_stockopts
+  218.     return render_to_response('socios/stock.html', locals(), context_instance=RequestContext(request))
+File "/usr/local/lib64/python2.4/site-packages/django/shortcuts/__init__.py" in render_to_response
+  20.     return HttpResponse(loader.render_to_string(*args, **kwargs), **httpresponse_kwargs)
+File "/usr/local/lib64/python2.4/site-packages/django/template/loader.py" in render_to_string
+  103.         t = get_template(template_name)
+File "/usr/local/lib64/python2.4/site-packages/django/template/loader.py" in get_template
+  82.     template = get_template_from_string(source, origin, template_name)
+File "/usr/local/lib64/python2.4/site-packages/django/template/loader.py" in get_template_from_string
+  90.     return Template(source, origin, name)
+File "/usr/local/lib64/python2.4/site-packages/django/template/__init__.py" in __init__
+  155.         self.nodelist = compile_string(template_string, origin)
+File "/usr/local/lib64/python2.4/site-packages/django/template/__init__.py" in compile_string
+  176.     return parser.parse()
+File "/usr/local/lib64/python2.4/site-packages/django/template/__init__.py" in parse
+  272.                     compiled_result = compile_func(self, token)
+File "/usr/local/lib64/python2.4/site-packages/django/template/loader_tags.py" in do_extends
+  169.     nodelist = parser.parse()
+File "/usr/local/lib64/python2.4/site-packages/django/template/__init__.py" in parse
+  272.                     compiled_result = compile_func(self, token)
+File "/usr/local/lib64/python2.4/site-packages/django/template/loader_tags.py" in do_block
+  147.     nodelist = parser.parse(('endblock', 'endblock %s' % block_name))
+File "/usr/local/lib64/python2.4/site-packages/django/template/__init__.py" in parse
+  272.                     compiled_result = compile_func(self, token)
+File "/usr/local/lib64/python2.4/site-packages/django/template/defaulttags.py" in do_if
+  830.     nodelist_true = parser.parse(('else', 'endif'))
+File "/usr/local/lib64/python2.4/site-packages/django/template/__init__.py" in parse
+  272.                     compiled_result = compile_func(self, token)
+File "/usr/local/lib64/python2.4/site-packages/django/template/defaulttags.py" in do_for
+  690.     nodelist_loop = parser.parse(('empty', 'endfor',))
+File "/usr/local/lib64/python2.4/site-packages/django/template/__init__.py" in parse
+  272.                     compiled_result = compile_func(self, token)
+File "/usr/local/lib64/python2.4/site-packages/django/template/defaulttags.py" in do_if
+  824.                 raise TemplateSyntaxError, "'if' statement improperly formatted"
+
+Exception Type: TemplateSyntaxError at /minhas_stockopts/
+Exception Value: 'if' statement improperly formatted
